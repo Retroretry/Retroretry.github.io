@@ -50,6 +50,6 @@ io.on('connection', (socket) => {
     });
 });
 
-http.listen(3001, () => {
+http.listen(10000, () => {
     console.log('Сервер запущен на http://localhost:3001');
 });
