@@ -10,43 +10,49 @@ app.use(express.static('public'));
 const adjectives = ["Голубой", "Лысый", "Отсталый", "Чурка", "Обиженый", "Опущеный", "Синий", "Умствено отсталый"];
 const nouns = ["Хуесос", "Долбоёб", "Водолаз", "Жид", "Каха", "Аутист", "Навальный", "Пидор"];
 
-// Здесь мы будем хранить никнеймы: { socketId: 'Быстрый.Енот' }
-const users = {};
+// История сообщений (храним в памяти)
+const history = [];
+const MAX_HISTORY = 50;
 
-// Функция для выбора случайного слова
 function getRandomWord(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
 
 io.on('connection', (socket) => {
-    // Генерируем никнейм при подключении
+    // Генерация никнейма
     const nickname = `${getRandomWord(adjectives)}.${getRandomWord(nouns)}`;
-    users[socket.id] = nickname; // Запоминаем пользователя
+    users[socket.id] = nickname;
 
     console.log(`Подключился: ${nickname}`);
 
-    // Отправляем сообщение
+    // 1. При входе отправляем пользователю историю (чистый текст)
+    socket.emit('history', history);
+
     socket.on('chat message', (msg) => {
         const currentUser = users[socket.id];
         const time = new Date().toLocaleTimeString();
         
-        // Формируем строку для лога и консоли
+        // Лог для консоли и файла
         const logEntry = `[${time}] ${currentUser}: ${msg}\n`;
-        
         console.log(logEntry.trim());
 
-        // Запись в файл (как ты просил ранее)
         fs.appendFile('history.log', logEntry, (err) => {
             if (err) console.error(err);
         });
 
-        // Важно: теперь мы отправляем ОБЪЕКТ, а не просто текст
-        io.emit('chat message', { user: currentUser, text: msg });
+        // Формируем объект сообщения
+        const messageData = { user: currentUser, text: msg, time: time };
+
+        // 2. Сохраняем в историю
+        history.push(messageData);
+        if (history.length > MAX_HISTORY) history.shift();
+
+        // 3. Отправляем всем
+        io.emit('chat message', messageData);
     });
 
     socket.on('disconnect', () => {
-        console.log(`Отключился: ${users[socket.id]}`);
-        delete users[socket.id]; // Удаляем из памяти
+        delete users[socket.id];
     });
 });
 
